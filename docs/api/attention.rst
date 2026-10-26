@@ -3,6 +3,55 @@
 FlashInfer Attention Kernels
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Rubin Paged Sigmoid-Gated GQA-D256
+=================================
+
+``flashinfer.attention.cute_dsl.cute_dsl_gqa_d256_paged`` loads precompiled
+TVM-FFI artifacts from the CuTe DSL FMHA cubin distribution. It supports
+Rubin SM107 with FP8 E4M3 Q/K/V, 16 Q heads, 2 KV heads, QK/VO dimension 256,
+NHD KV pages of 32 tokens, FP16 softmax, and BF16 output/gate logits. Both
+noncausal and bottom-right causal attention are available. The sigmoid gate
+is applied elementwise to the normalized attention output before conversion
+to BF16. Gate fusion uses one KV split and no reduction.
+
+The scale-enabled specialization applies ``sm_scale * log2(e)`` to logits,
+with ``sm_scale=1/16`` by default. For ``use_softmax_scale=False``, the caller
+must multiply Q by that factor **before FP8 quantization**. The kernel then
+consumes base-2 logits and ignores the runtime ``sm_scale`` argument. Separate
+FP8 dequantization scales are not supported.
+
+All tensors must be contiguous, on the same CUDA device, and 16-byte aligned.
+Q and BF16 gate/output have shape ``[B, S_q, 16, 256]``; K/V pools have shape
+``[num_pages, 32, 2, 256]``. Supply Int32 ``seq_lens[B]``,
+``kv_indptr[B+1]`` and flattened ``kv_indices``. Each request needs at least
+``ceil(seq_lens[b]/32)`` valid page entries starting at ``kv_indptr[b]``.
+Offsets may include gaps; referenced page IDs must be in range. KV lengths
+must be positive and at least ``S_q`` for causal attention. Unused tokens in
+partial final pages must be zero padded. Metadata values and padding are
+the caller's responsibility; the API checks shapes, dtypes and alignment
+without copying device data to the host.
+
+For local verification, set ``FLASHINFER_DSL_FMHA_LOCAL_DIR`` to the export's
+``sm_107a`` directory. The installed runtime needs CuTe DSL and TVM-FFI,
+with no kernel compilation required. Warm up the exact API invocation before
+CUDA graph capture and pass a preallocated ``out`` that does not share input
+storage. Paging metadata must also be prepared before capture.
+
+For callers that already have FlashInfer paging metadata, prepare lengths and
+warm up before capture::
+
+    from flashinfer.attention.cute_dsl import cute_dsl_gqa_d256_paged
+
+    # All metadata is contiguous Int32 CUDA storage; Q is [B, S_q, 16, 256].
+    seq_lens = (kv_indptr[1:] - kv_indptr[:-1] - 1) * 32 + last_page_len
+    out = torch.empty_like(gate)  # gate and output are BF16
+    cute_dsl_gqa_d256_paged(
+        q, k_pages, v_pages, gate, seq_lens, kv_indptr, kv_indices,
+        out=out, causal=True,
+    )
+
+.. autofunction:: flashinfer.attention.cute_dsl.gqa_d256.cute_dsl_gqa_d256_paged
+
 
 Experimental Task-Scheduled Attention
 =====================================

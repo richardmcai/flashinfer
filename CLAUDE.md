@@ -569,6 +569,15 @@ Every public API decorated with `@flashinfer_api` should also carry a `trace=` a
 - **Moderate**: `flashinfer/sampling.py` - with Jinja templating
 - **Complex**: `flashinfer/decode.py` - plan-run pattern, advanced workspace
 
+Rubin paged FP8 sigmoid-gated GQA-D256 is exposed explicitly as
+`flashinfer.attention.cute_dsl.cute_dsl_gqa_d256_paged`. It loads precompiled
+TVM-FFI artifacts from the CuTe DSL FMHA cubin distribution or from
+`FLASHINFER_DSL_FMHA_LOCAL_DIR`.
+The initial contract is SM107, Q/K/V E4M3, Q heads=16, KV heads=2, D=256,
+NHD page size=32, FP16 softmax, and BF16 gate/output. Its no-scale variant
+expects Q prescaled by `sm_scale * log2(e)` before FP8 quantization. See
+`docs/api/attention.rst` for paging and CUDA graph requirements.
+
 ## Experimental Code
 
 Experimental backends live under `flashinfer/experimental/`; experimental

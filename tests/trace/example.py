@@ -18,6 +18,8 @@ alphamoe_fused_router_e512_k8_bm16_shared0.json
 alphamoe_nvfp4_aligned_moe_topk2_e4_h256_n256_bm8.json
 bmm_mxfp8_N128_K128.json
 cute_dsl_fused_moe_bf16_h2048_e128_topk8.json
+cute_dsl_gqa_d256_hq16_hkv2_d256_ps32_causal0_scale1.json
+cute_dsl_gqa_d256_hq16_hkv2_d256_ps32_causal1_scale0.json
 dsv41_fp4_quantize_pack_sparse_mla_cache_3d_hnd_ps8.json
 dsv41_fp4_quantize_pack_sparse_mla_cache_3d_nhd_ps8.json
 dsv41_fp4_quantize_append_sparse_mla_cache_2d_hnd_ps8.json
@@ -157,6 +159,7 @@ are only generated on SM120/SM121 GPUs.
 trtllm_batch_decode_block_sparse_h16_kv2_d128_ps16.json requires SM100/SM103 GPUs.
 trtllm_gen_routing_e256_k8_t8.json requires SM100/SM103/SM120/SM121 GPUs.
 top_k_varlen_n4096_k512.json (windowed prefill mode, gvr_2) requires SM100/SM103/SM107 GPUs.
+Gated GQA-D256 schemas are generated on SM107 with CuTe DSL; generation does not launch them.
 """
 
 import contextlib
@@ -3046,6 +3049,21 @@ with contextlib.suppress(Exception):
             _fp4_in["seq_lens"],
             _fp4_in["max_seq_len"],
         )
+
+# Gated GQA-D256: both scaling contracts, with different mask modes.
+from flashinfer.cute_dsl.availability import is_cute_dsl_available as _gqa_dsl_available
+
+if torch.cuda.get_device_capability() == (10, 7) and _gqa_dsl_available():
+    from flashinfer.attention.cute_dsl import cute_dsl_gqa_d256_paged
+    from flashinfer.trace.templates.gqa_d256 import gated_gqa_d256_trace
+
+    for _causal, _scale in ((False, True), (True, False)):
+        _gqa_inputs = gated_gqa_d256_trace.init(
+            device=device, causal=_causal, use_softmax_scale=_scale
+        )
+        # Schema generation remains usable before the new artifact pin is
+        # published. Numerical/runtime checks live in the attention tests.
+        cute_dsl_gqa_d256_paged.fi_trace(**_gqa_inputs, save_dir=SAVE_DIR)
 
 # ── top_k_varlen (DeepSeek sparse-attention indexer top-k) ─────────────────
 # decode shape: one row per request, per-request lengths; the radix_cutlass

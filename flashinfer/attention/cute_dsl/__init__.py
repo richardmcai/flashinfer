@@ -29,6 +29,7 @@ if is_cute_dsl_available():
         cute_dsl_fmha_ragged_prefill,
     )
     from .fmha_blockscaled import cute_dsl_fmha_blockscaled_prefill
+    from .gqa_d256 import cute_dsl_gqa_d256_paged
 
     __all__ = [
         "is_cute_dsl_available",
@@ -36,6 +37,7 @@ if is_cute_dsl_available():
         "get_cute_dsl_fmha_kernel",
         "cute_dsl_fmha_ragged_prefill",
         "cute_dsl_fmha_blockscaled_prefill",
+        "cute_dsl_gqa_d256_paged",
     ]
 
     if is_cute_dsl_experimental_available():
