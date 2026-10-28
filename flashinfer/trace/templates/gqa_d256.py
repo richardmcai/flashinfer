@@ -70,12 +70,17 @@ def _gated_gqa_d256_init(
     *,
     batch_size=2,
     qo_len=16,
+    num_pages=0,
+    indptr_len=0,
+    indices_len=0,
     device="cuda",
     seed=0,
     causal=False,
     use_softmax_scale=True,
     sm_scale=None,
 ):
+    # These Var axes are derived from the batch and sequence lengths.
+    del num_pages, indptr_len, indices_len
     generator = torch.Generator(device=device).manual_seed(seed)
     lengths = [max(qo_len, 33) + batch * 32 for batch in range(batch_size)]
     offsets = [0]
